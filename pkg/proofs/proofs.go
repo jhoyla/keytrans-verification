@@ -86,10 +86,10 @@ type CompleteBinaryLadderStep struct {
 	Result PrefixSearchResult
 }
 
-// @ preserves acc(results)
+// @ preserves acc(results, _)
 // @ requires p > noPerm
 // @ preserves acc(steps, p)
-func CombineResults(results []PrefixSearchResult, steps []BinaryLadderStep /*@, p perm @*/) (completeSteps []CompleteBinaryLadderStep, err error) {
+func CombineResults(results []PrefixSearchResult, steps []BinaryLadderStep /*@, ghost p perm @*/) (completeSteps []CompleteBinaryLadderStep, err error) {
 	completeSteps = make([]CompleteBinaryLadderStep, 0, len(results))
 	if len(steps) < len(results) {
 		return completeSteps, errors.New("not enough steps")

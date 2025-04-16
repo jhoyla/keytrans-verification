@@ -120,7 +120,7 @@ func (st *UserState) VerifyLatest(query SearchRequest, resp SearchResponse /*@, 
 	//@ invariant acc(trees, 1/2)
 	for i := 0; i < len(trees); i++ {
 		tree := trees[i]
-		query.Label
+		_ = tree
 
 	}
 
@@ -128,5 +128,5 @@ func (st *UserState) VerifyLatest(query SearchRequest, resp SearchResponse /*@, 
 }
 
 func CheckTree(pt *proofs.PrefixTree, label []byte) bool {
-
+	return false
 }
