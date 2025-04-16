@@ -32,6 +32,7 @@ type PrefixTree struct {
 }
 
 // Get the left or right child of the given tree and initialize if necessary
+// @ preserves acc(tree)
 func (tree *PrefixTree) getChild(right bool) (sub_tree *PrefixTree) {
 	if right {
 		sub_tree = tree.Right
@@ -49,13 +50,26 @@ func (tree *PrefixTree) getChild(right bool) (sub_tree *PrefixTree) {
 	return sub_tree
 }
 
+// @ pure
+// @ decreases
+// @ requires acc(arr, _)
+// @ requires i < 256
+// @ requires len(*arr) == 32
+func nextBit(arr *[32]byte, i uint8) bool {
+	return arr[i/8]>>(i%8) != 0
+}
+
 // Insert the given prefix tree at the specified depth, following the provided
 // vrf_output.
-func (tree *PrefixTree) initializeAt(vrf_output [32]byte, depth uint8, sub_tree PrefixTree) {
+// requires p > noPerm
+// preserves acc(vrf_output, p)
+// requires depth < 256
+func (tree *PrefixTree) initializeAt(vrf_output *[32]byte, depth uint8, sub_tree PrefixTree /*@, p perm @*/) {
 	node := tree
 	var i uint8
+	//@ invariant acc(vrf_output, p)
 	for i = 0; i < depth; i++ {
-		node = tree.getChild(vrf_output[i/8]>>(i%8) != 0)
+		node = tree.getChild(nextBit(vrf_output, i))
 	}
 
 	if sub_tree.Value != nil {
@@ -75,14 +89,16 @@ func (tree *PrefixTree) initializeAt(vrf_output [32]byte, depth uint8, sub_tree 
 // Construct a prefix tree from a prefix proof and the provided binary ladder
 // steps. We assume that the binary ladder steps are in the order that the
 // binary ladder would request them.
-func (prf PrefixProof) ToTree(fullLadder []BinaryLadderStep) (tree *PrefixTree, err error) {
+// @ requires p > noPerm
+// @ preserves acc(fullLadder, p)
+func (prf PrefixProof) ToTree(fullLadder []BinaryLadderStep /*@, p perm @*/) (tree *PrefixTree, err error) {
 	tree = &PrefixTree{nil, nil, nil, nil}
 	if len(fullLadder) < len(prf.Results) {
 		return nil, errors.New("too many results")
 	}
 
 	var steps []CompleteBinaryLadderStep
-	if steps, err = CombineResults(prf.Results, fullLadder); err != nil {
+	if steps, err = CombineResults(prf.Results, fullLadder /*@, p @*/); err != nil {
 		return nil, err
 	}
 
@@ -93,9 +109,9 @@ func (prf PrefixProof) ToTree(fullLadder []BinaryLadderStep) (tree *PrefixTree, 
 			if step.Result.Leaf == nil {
 				return nil, errors.New("missing leaf")
 			} else {
-				tree.initializeAt(step.Result.Leaf.Vrf_output, r.Depth, PrefixTree{
+				tree.initializeAt(&step.Result.Leaf.Vrf_output, r.Depth, PrefixTree{
 					Leaf: step.Result.Leaf,
-				})
+				} /*@, perm(1/2) @*/)
 			}
 		} else {
 			leaf /*@ @ @*/ := PrefixLeaf{
@@ -103,9 +119,9 @@ func (prf PrefixProof) ToTree(fullLadder []BinaryLadderStep) (tree *PrefixTree, 
 				Commitment: step.Step.Commitment,
 			}
 			if r.Result_type == Inclusion {
-				tree.initializeAt(leaf.Vrf_output, r.Depth, PrefixTree{Leaf: &leaf})
+				tree.initializeAt(&leaf.Vrf_output, r.Depth, PrefixTree{Leaf: &leaf} /*@, perm(1/2) @*/)
 			} else if r.Result_type == NonInclusionParent {
-				tree.initializeAt(leaf.Vrf_output, r.Depth, PrefixTree{Value: &[32]byte{}})
+				tree.initializeAt(&leaf.Vrf_output, r.Depth, PrefixTree{Value: &[32]byte{}} /*@, perm(1/2) @*/)
 			} else {
 				return nil, errors.New("illegal result type")
 			}
@@ -126,6 +142,8 @@ func (prf PrefixProof) ToTree(fullLadder []BinaryLadderStep) (tree *PrefixTree, 
 // Set the hash values of unitialized subtrees, pulling them in left-to-right
 // DFS order from the provided, ordered_values. Raises an error if number of
 // ordered_values does not exactly match the required values.
+// @ preserves acc(tree, 1)
+// @ preserves tree.Left != nil ==> acc(tree.Left)
 func (tree *PrefixTree) SetMissingSubtrees(ordered_values []NodeValue) ([]NodeValue, error) {
 	var err error
 	values := ordered_values
@@ -161,6 +179,8 @@ func (tree *PrefixTree) SetMissingSubtrees(ordered_values []NodeValue) ([]NodeVa
 	return values, nil
 }
 
+// @ preserves acc(tree)
+// @ preserves tree.Right != nil ==> acc(tree.Right)
 func (tree *PrefixTree) HashContent() (hashContent []byte, err error) {
 	hashContent = make([]byte, sha256.Size+1)
 	if tree == nil {
@@ -184,6 +204,8 @@ func (tree *PrefixTree) HashContent() (hashContent []byte, err error) {
 }
 
 // Recursively compute all hashes of a prefix tree.
+// @ preserves acc(tree, 1)
+// @ preserves tree.Leaf != nil ==> acc(tree.Leaf, 1)
 func (tree *PrefixTree) ComputeHash() (hash [sha256.Size]byte, err error) {
 	if tree == nil {
 		return [sha256.Size]byte{}, errors.New("cannot hash empty node")

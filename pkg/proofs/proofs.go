@@ -86,19 +86,22 @@ type CompleteBinaryLadderStep struct {
 	Result PrefixSearchResult
 }
 
-//@ trusted
-func CombineResults(results []PrefixSearchResult, steps []BinaryLadderStep) (completeSteps []CompleteBinaryLadderStep, err error) {
+// @ preserves acc(results)
+// @ requires p > noPerm
+// @ preserves acc(steps, p)
+func CombineResults(results []PrefixSearchResult, steps []BinaryLadderStep /*@, p perm @*/) (completeSteps []CompleteBinaryLadderStep, err error) {
 	completeSteps = make([]CompleteBinaryLadderStep, 0, len(results))
 	if len(steps) < len(results) {
 		return completeSteps, errors.New("not enough steps")
 	}
 
 	sortedSteps := make([]BinaryLadderStep, 0, len(results))
-	copy(sortedSteps, steps[:len(results)])
+	copy(sortedSteps, steps[:len(results)] /*@, p@*/)
 	sortBinaryLadderSteps(sortedSteps)
 
+	//@ invariant acc(completeSteps, 1)
 	for i, step := range sortedSteps {
-		completeSteps = append(completeSteps, CompleteBinaryLadderStep{
+		completeSteps = append( /*@perm(1), @*/ completeSteps, CompleteBinaryLadderStep{
 			Step:   step,
 			Result: results[i],
 		})
@@ -107,13 +110,12 @@ func CombineResults(results []PrefixSearchResult, steps []BinaryLadderStep) (com
 	return completeSteps, nil
 }
 
-//@ trusted
-//@ preserves acc(sortedSteps)
+// @ trusted
+// @ preserves acc(sortedSteps)
 func sortBinaryLadderSteps(sortedSteps []BinaryLadderStep) {
 	slices.SortFunc(sortedSteps, func(a, b BinaryLadderStep) int {
 		hashA := crypto.VRF_proof_to_hash(a.Proof)
 		hashB := crypto.VRF_proof_to_hash(b.Proof)
 		return bytes.Compare(hashA[:], hashB[:])
 	})
-	return
 }

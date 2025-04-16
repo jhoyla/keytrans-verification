@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"math"
 
 	"github.com/felixlinker/keytrans-verification/pkg/proofs"
 )
@@ -69,10 +70,10 @@ pred (s SearchResponse) Inv() {
 }
 @*/
 
-//@ requires noPerm < p
-//@ preserves st.Inv()
-//@ preserves acc(query.Inv(), p) && acc(resp.Inv(), p)
-//@ ensures err == nil ==> acc(res) && res.Inv()
+// @ requires noPerm < p
+// @ preserves st.Inv()
+// @ preserves acc(query.Inv(), p) && acc(resp.Inv(), p)
+// @ ensures err == nil ==> acc(res) && res.Inv()
 func (st *UserState) VerifyLatest(query SearchRequest, resp SearchResponse /*@, ghost p perm @*/) (res *proofs.UpdateValue, err error) {
 	//@ unfold acc(resp.Inv(), p)
 	if err := st.UpdateView(resp.Full_tree_head, resp.Search /*@, p/2 @*/); err != nil {
@@ -81,6 +82,9 @@ func (st *UserState) VerifyLatest(query SearchRequest, resp SearchResponse /*@, 
 	} else if resp.Version == nil {
 		//@ fold acc(resp.Inv(), p)
 		return nil, errors.New("no version provided")
+	} else if *resp.Version >= math.MaxUint32/2 {
+		//@ fold acc(resp.Inv(), p)
+		return nil, errors.New("version too large")
 	} else if len(resp.Search.Prefix_roots) != 0 {
 		//@ fold acc(resp.Inv(), p)
 		return nil, errors.New("prefix roots provided")
@@ -102,7 +106,7 @@ func (st *UserState) VerifyLatest(query SearchRequest, resp SearchResponse /*@, 
 	for i := 0; i < len(resp.Search.Prefix_proofs); i++ {
 		//@ unfold acc(resp.Inv(), p)
 		prf := /*@ unfolding acc(resp.Search.Inv(), p/2) in @*/ resp.Search.Prefix_proofs[i]
-		if tree, err := prf.ToTree(resp.Binary_ladder); err != nil {
+		if tree, err := prf.ToTree(resp.Binary_ladder /*@, p/2 @*/); err != nil {
 			//@ fold acc(resp.Inv(), p)
 			return nil, err
 		} else {
@@ -112,6 +116,17 @@ func (st *UserState) VerifyLatest(query SearchRequest, resp SearchResponse /*@, 
 	}
 
 	// TODO: Verify proof of inclusion in all trees
+	//@ invariant 0 <= i && i <= len(trees)
+	//@ invariant acc(trees, 1/2)
+	for i := 0; i < len(trees); i++ {
+		tree := trees[i]
+		query.Label
+
+	}
 
 	return nil, nil
+}
+
+func CheckTree(pt *proofs.PrefixTree, label []byte) bool {
+
 }
